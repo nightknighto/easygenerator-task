@@ -1,31 +1,23 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
+import { createTestApp, type E2eTestApp } from './helpers/test-app';
 
 describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
+  let testApp: E2eTestApp;
 
-  beforeEach(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    // Mirror main.ts so the e2e harness sees the same routes as production.
-    app.setGlobalPrefix('api');
-    await app.init();
+  beforeAll(async () => {
+    testApp = await createTestApp();
   });
 
-  it('/api (GET)', () => {
-    return request(app.getHttpServer())
+  afterAll(async () => {
+    await testApp.close();
+  });
+
+  it('GET /api serves the health route under the global prefix', async () => {
+    const res = await request(testApp.app.getHttpServer())
       .get('/api')
       .expect(200)
       .expect('Hello World!');
-  });
-
-  afterEach(async () => {
-    await app.close();
+    // The unprefixed root is intentionally not routed.
+    expect(res.headers['content-type']).toMatch(/text\/html/);
   });
 });

@@ -98,13 +98,36 @@ clears the cache and returns to the sign-in page.
 
 ## Tests
 
-`pnpm test` runs both suites through Turborepo:
+`pnpm test` runs both unit suites through Turborepo:
 
-- **backend** — Jest (22 tests): auth service scenarios with mocked persistence.
+- **backend** — Jest (25 tests): auth service scenarios and the generated
+  Swagger document, with mocked persistence (no DB needed).
 - **frontend** — Vitest + React Testing Library (32 tests): the API client's
   error-envelope parsing, the `me`/refresh-once logic, and the pages rendered
   through the real route tree with an in-memory history (guards, redirects and
   navigations run for real; only the API layer is mocked).
+
+`pnpm test:e2e` (or `pnpm --filter backend test:e2e`) runs the backend **E2E
+suite** — the real `AppModule` booted in-process via supertest (no listening
+port, so it never clashes with dev servers) against the live local
+infrastructure:
+
+- **Prerequisites** — `docker compose up -d` (MongoDB :27017, MailPit SMTP
+  :1025 / UI :8025) and the repo-root `.env`.
+- **Throwaway database** — tests run against a dedicated `easygenerator_e2e`
+  database (the `.env` `MONGODB_URI` with only the database name swapped: same
+  host/credentials/authSource), which is dropped after every spec file. The
+  dev database is never touched. Signup tokens are read straight from the
+  MailPit API and cookies replayed from `Set-Cookie` headers, so the suite
+  exercises the exact production flow end to end.
+- **Coverage** — the full signup walk (request → emailed link → verify →
+  complete → sign-in), anti-enumeration, token failure modes
+  (invalid/consumed/expired), the validation error envelope, the sign-in
+  cookie contract (httpOnly, `/api` vs `/api/auth` path scoping,
+  `SameSite=Lax`), `/me` auth, refresh rotation plus the reuse canary
+  (asserted down to the DB rows), and logout revocation/idempotency. Unique
+  random emails (`e2e-<uuid>@example.com`) keep tests order-independent and
+  re-runnable.
 
 
 
@@ -116,6 +139,7 @@ clears the cache and returns to the sign-in page.
 | `pnpm build`             | Build all packages — `@app/shared` first via the task graph          |
 | `pnpm lint`              | Lint everything (oxlint on frontend, ESLint on backend)             |
 | `pnpm test`              | Run unit tests (Jest on backend, Vitest + RTL on frontend)          |
+| `pnpm test:e2e`          | Run the backend E2E suite (needs `docker compose up -d`; uses a throwaway DB) |
 
 Per-package variants: `pnpm --filter <frontend \| backend \| @app/shared> <script>`.
 

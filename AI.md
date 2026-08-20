@@ -54,6 +54,18 @@ was reworked. Maintained as work progresses.
   examples) and the controller annotated end to end by the agent; the author
   ran the UI and reviewed the spec output.
 
+### Step 6 — backend E2E tests
+
+- The whole E2E suite built by the AI agent from an explicit recipe: jest
+  setup pinning a hermetic env, the in-process supertest harness, the MailPit
+  token-fetch helper, a small path-aware cookie jar, and four spec files
+  (health, signup walk + failure modes, signin, session: /me + refresh +
+  logout). The author reviewed the coverage list against the task spec and
+  re-ran the suite against the live containers.
+- README testing section, the `test:e2e` script/turbo task wiring and this
+  changelog entry drafted by the agent; the author verified the unit suite
+  and lint/build stayed green.
+
 ## Prompts & approaches that worked
 
 ### Step 1 — scaffolding
@@ -122,6 +134,29 @@ was reworked. Maintained as work progresses.
   mocked — no Mongo, no HTTP) asserts every path is documented, components
   come from the shared schemas with real constraints (`minLength` etc.), and
   no `$ref` dangles. Cheap enough to keep in the normal `pnpm test` run.
+
+### Step 6 — backend E2E tests
+
+- In-process supertest over `Test.createTestingModule(AppModule)` with
+  `cookie-parser` and the `api` prefix applied to mirror `main.ts` — no
+  listening port, so the suite coexists with the dev servers, and the routes
+  under test are exactly the production ones.
+- Hermetic env via a jest `setupFiles` script that sets `process.env` before
+  `AppModule` is imported: `@nestjs/config` layers env files UNDER process.env
+  (dotenv never overrides pre-set keys), so swapping only the database name in
+  `MONGODB_URI` reliably redirects the run to `easygenerator_e2e` while the
+  root `.env` still supplies host/credentials/SMTP. Verified mid-run with
+  mongosh (dev DB untouched) and after the run (e2e DB empty).
+- Replaying `Set-Cookie` headers through a tiny path-aware cookie jar instead
+  of a library: the tests themselves prove the `/api` vs `/api/auth` scoping
+  the backend promises, and single-cookie replays make the rotation/reuse
+  scenarios explicit.
+- Unique `e2e-<uuid>@example.com` addresses per test made everything
+  order-independent and re-runnable against the shared MailPit/Mongo
+  catchers from the first run.
+- Asserting revocation state through the app's own Mongoose models (fetched
+  from the DI container) kept the reuse-canary and logout tests honest
+  without extra fixtures or a direct driver.
 
 ## What I corrected or reworked
 
@@ -199,3 +234,29 @@ was reworked. Maintained as work progresses.
   (deps installed, DTO wrappers and `.meta()` enrichment written, nothing
   wired). Rather than redo it, the half-done work was reviewed first and
   then built upon — reviewing beats reverting working code.
+
+### Step 6 — backend E2E tests
+
+- The recipe's MailPit endpoint was wrong: `/api/v1/messages?to=<email>`
+  silently IGNORES the `to` query param (verified against the running
+  container — it returned all messages). The helper uses
+  `/api/v1/search?query=<email>` plus an exact `To`-header match instead,
+  which the unique per-test addresses make precise.
+- `dropDatabase()` in afterAll wasn't actually final: Mongoose builds indexes
+  asynchronously after connect, so a late index build re-created empty
+  collections AFTER the drop. `close()` now awaits `Model.init()` for every
+  registered model before dropping; re-verified the e2e database ends the
+  run with zero collections.
+- Relative-import depth bit once — `helpers/` sits one level deeper than the
+  spec files, so `../src/…` had to be `../../src/…` in the harness. Caught by
+  the first failing run (module-not-found), fixed in the helper, not worked
+  around with a `moduleNameMapper`.
+- Deliberate scope call: after logout, a refresh attempt with the revoked
+  cookie returns `REFRESH_TOKEN_REUSED` (any revoked row trips the canary),
+  not a dedicated "logged out" code. That matches the "revoked token
+  presented again" semantics, so the test pins the 401 without over-coupling
+  to the code — noted here rather than changing app behavior.
+- The Nest CLI scaffold's `app.e2e-spec.ts` applied the global prefix but NOT
+  `cookie-parser`; any cookie-based test would have silently seen `undefined`
+  cookies. The harness mirrors `main.ts` fully, which is the whole point of
+  an e2e suite.
