@@ -46,7 +46,7 @@ local `.env` on this machine (port 3000 is occupied by an unrelated project);
 Run a single app:
 
 ```bash
-pnpm --filter backend start:dev
+pnpm --filter backend dev
 pnpm --filter frontend dev
 ```
 
