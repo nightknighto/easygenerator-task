@@ -76,9 +76,31 @@ The rest of the sections are manually written, so feel free to jump to them if y
 - Owning all decisions: I explicitly told the AI that all technical decisions must go through me, and that it must present the possible approaches as options for me to choose from. Paired with the step-by-step approach, this ensured that the final output aligned with my vision and requirements.
 
 - AI brainstorming: To speed up the technical decision-making process, I use a brainstorming skill that makes the AI generate a list of possible approaches for each technical decision, comparing their pros and cons, then I choose the one that best fits my needs. This allowed me to make informed decisions quickly and efficiently. I'm also able to steer the AI towards my preferred approach by providing feedback on the options it presents.
+  - **Note**: Even though AI presented me with great options at each decision point, due to my experience, I was able to come up with better approaches that the AI did not consider. Some examples of this are:
+    - The technical stack and the monorepo layout
+    - The 3-way email-link signup flow
+    - Using mailpit container for local email testing
 
 - Subagent-driven development: I instructed the AI agent to rely on launching subagents for the code implementation of each task. This allowed the main AI to act as a project manager and coordinator, keeping track of the overall progress, the instructions, and the quality of the output. It also prevented context loss, bloating, and ensured that the AI's output was consistent with my requirements.
 > In bigger projects, I would also create AGENTS.md and use it to save instructions and context across AI sessions.
+
+### Example Prompt
+
+This is the first prompt starting the project:
+
+```
+$brainstorming
+Given [Full_Stack_Test_Task.md](./Full_Stack_Test_Task.md) , we are to take this step by step. All decisions and technical choices should be MINE. Your mission is to brianstorm and suggest the available approaches whenever there are choices to be made.
+
+If we can, let's try to have this chat as the central orchestrator for the whole task. Meaning, prefer delegating technical work to subagents whenever possible, so we can keep using this chat without getting context bloat.
+
+Step 1: scaffolding frontend and backend projects
+Create a monorepo (pnpm workspace or turbo, whichever you see better) with a Vite React TypeScript Tailwind frontend project, NestJS TypeScript backend project (mongodb not now), and a shared library to be used for sharing request-response DTOs later.
+
+Use deterministic scaffolding commands whenever possible instead of manually creating the boilerplate. Vite and NestJS already have ones, turbo idk, but maybe
+```
+
+Full AI conversation can be shared live with the recruiter if desired.
 
 ## What I corrected or reworked
 
