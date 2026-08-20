@@ -13,11 +13,14 @@ Authentication module with a **sign up** / **sign in** flow and a protected appl
 
 - **Node.js ≥ 22**
 - **pnpm ≥ 11** — enable via `corepack enable` (the pinned version lives in `packageManager`) or install globally with `npm i -g pnpm`
+- **Docker** (Docker Desktop or Engine with Compose v2+) — runs the local MongoDB the backend expects
 
 ## Getting started
 
 ```bash
 pnpm install
+cp .env.example .env   # local-dev credentials + MONGODB_URI (gitignored)
+docker compose up -d   # MongoDB 8 on localhost:27017 (docker compose ps → healthy)
 ```
 
 ## Development
@@ -54,9 +57,10 @@ Per-package variants: `pnpm --filter <frontend \| backend \| @app/shared> <scrip
 ```
 ├── apps/
 │   ├── frontend/          # Vite + React + TS + Tailwind v4
-│   └── backend/           # NestJS API
+│   └── backend/           # NestJS API (Mongoose → MongoDB)
 ├── packages/
 │   └── shared/            # @app/shared — request/response DTOs (tsup → ESM + CJS + .d.ts)
+├── compose.yaml           # local MongoDB (mongo:8, healthchecked, persistent volume)
 ├── pnpm-workspace.yaml
 └── turbo.json             # task pipeline: build → dev → lint → test
 ```
