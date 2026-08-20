@@ -23,6 +23,15 @@ was reworked. Maintained as work progresses.
   `MongooseModule.forRootAsync`, connection logging via the Nest Logger)
   drafted by the agent; author verified by booting the stack end to end.
 
+### Step 3 — backend auth module
+
+- Full auth module implemented by the AI agent from the author's explicit spec
+  (3-step email-link signup, anti-enumeration, cookie sign-in with rotating
+  DB-backed refresh tokens, refresh-reuse canary, passport-jwt `/me`).
+- Shared Zod schemas (`@app/shared`), MailPit compose service, env additions,
+  README auth-flow table and this changelog drafted by the agent; author
+  reviewed the spec decisions were implemented verbatim.
+
 ## Prompts & approaches that worked
 
 ### Step 1 — scaffolding
@@ -44,6 +53,25 @@ was reworked. Maintained as work progresses.
   cwd `apps/backend` (turbo/jest) and from the repo root — avoids a
   "works in dev, breaks elsewhere" class of bug.
 
+### Step 3 — backend auth module
+
+- Version decision: `nestjs-zod@5` (5.5.0) supports `zod ^3.25 || ^4` and
+  Nest 10/11 per its peer deps and is actively maintained (release within the
+  last month at the time of writing), so it was used as-is — its
+  `ZodValidationPipe` accepts the raw shared schemas, no DTO-wrapper classes
+  needed. No deviation to a custom pipe.
+- Keeping the Zod schemas in `@app/shared` and validating with
+  `new ZodValidationPipe(SignupRequestSchema)` per route gave single-source
+  validation; the global exception filter maps the resulting
+  `ZodValidationException` into the `{ statusCode, code, message, details }`
+  envelope with Zod issues in `details`.
+- Mocking the persistence services (Users/SignupToken/RefreshToken) instead of
+  the Mongo layer made the AuthService unit tests read like the spec's
+  scenario list (22 tests, no DB needed).
+- Walking the flow live with curl + cookie jars + the MailPit API + mongosh
+  caught one real bug: Nest defaults POST to 201, but several endpoints must
+  return 200 — explicit `@HttpCode` on them fixed it.
+
 ## What I corrected or reworked
 
 ### Step 1 — scaffolding
@@ -62,3 +90,22 @@ was reworked. Maintained as work progresses.
 - Kept `.env.example` filled with working local-dev values instead of
   placeholders so `cp .env.example .env && docker compose up -d` works out
   of the box — documented as local-dev-only in both files.
+
+### Step 3 — backend auth module
+
+- Spec tension found while verifying: the refresh cookie is path-scoped to
+  `/api/auth/refresh` ONLY (so just the refresh endpoint ever sees it), which
+  means a spec-conforming browser will NOT attach it to
+  `POST /api/auth/logout`. Logout therefore clears both cookies and returns
+  204 unconditionally, and revokes the DB row only when the cookie is present
+  (verified with curl sending it explicitly); unreferenced rows simply age out
+  via the TTL index. Kept as designed rather than widening the cookie path,
+  since the path scoping was an explicit author decision.
+- `Date | null` fields in the Mongoose schemas needed an explicit
+  `@Prop({ type: Date })` — the decorator can't infer union types.
+- The repo's ESLint config uses type-checked rules, which fight Jest mocks;
+  added a small config block relaxing `no-unbound-method`/`no-unsafe-*` for
+  `*.spec.ts` files only (source files stay fully checked).
+- `pnpm --filter backend add …` did not link shared's newly added `zod` dep
+  into `packages/shared/node_modules`; a root `pnpm --filter @app/shared
+  install` fixed the tsup dts build.
