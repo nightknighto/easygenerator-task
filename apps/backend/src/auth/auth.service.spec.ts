@@ -366,7 +366,7 @@ describe('AuthService', () => {
         httpOnly: true,
         sameSite: 'lax',
         secure: false,
-        path: '/api/auth/refresh',
+        path: '/api/auth',
         maxAge: 24 * 60 * 60 * 1000,
       });
     });
@@ -383,7 +383,7 @@ describe('AuthService', () => {
 
       expect(refreshTokens.issue).toHaveBeenCalledWith('user-id-1', true);
       expect(res.cookie.mock.calls[1][2]).toMatchObject({
-        path: '/api/auth/refresh',
+        path: '/api/auth',
         maxAge: 30 * 24 * 60 * 60 * 1000,
       });
     });
@@ -491,7 +491,7 @@ describe('AuthService', () => {
       );
       expect(res.clearCookie).toHaveBeenCalledWith(
         'refreshToken',
-        expect.objectContaining({ path: '/api/auth/refresh' }),
+        expect.objectContaining({ path: '/api/auth' }),
       );
     });
 

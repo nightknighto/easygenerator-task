@@ -93,14 +93,13 @@ was reworked. Maintained as work progresses.
 
 ### Step 3 — backend auth module
 
-- Spec tension found while verifying: the refresh cookie is path-scoped to
-  `/api/auth/refresh` ONLY (so just the refresh endpoint ever sees it), which
-  means a spec-conforming browser will NOT attach it to
-  `POST /api/auth/logout`. Logout therefore clears both cookies and returns
-  204 unconditionally, and revokes the DB row only when the cookie is present
-  (verified with curl sending it explicitly); unreferenced rows simply age out
-  via the TTL index. Kept as designed rather than widening the cookie path,
-  since the path scoping was an explicit author decision.
+- Spec tension found while verifying: the refresh cookie was path-scoped to
+  `/api/auth/refresh` ONLY, which meant a spec-conforming browser would NOT
+  attach it to `POST /api/auth/logout` — logout could clear cookies but could
+  not revoke the DB row in real browser usage. Surfaced to the author, who
+  decided to widen the refresh cookie path to `/api/auth` so logout receives
+  it and revocation works as originally specced; the token still never
+  travels to non-auth endpoints.
 - `Date | null` fields in the Mongoose schemas needed an explicit
   `@Prop({ type: Date })` — the decorator can't infer union types.
 - The repo's ESLint config uses type-checked rules, which fight Jest mocks;
