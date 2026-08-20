@@ -4,7 +4,7 @@ Authentication module with a **sign up** / **sign in** flow and a protected appl
 
 | Piece      | Stack                                                        |
 | ---------- | ------------------------------------------------------------ |
-| Frontend   | Vite + React + TypeScript + Tailwind CSS v4 (`apps/frontend`) |
+| Frontend   | Vite + React + TypeScript + Tailwind CSS v4, TanStack Router/Query, React Hook Form (`apps/frontend`) |
 | Backend    | NestJS + TypeScript, strict mode (`apps/backend`)             |
 | Shared lib | `@app/shared` — DTOs shared between both apps (`packages/shared`) |
 | Tooling    | pnpm workspaces + Turborepo                                  |
@@ -32,8 +32,16 @@ pnpm dev
 ```
 
 - Frontend: <http://localhost:5173>
-- Backend: <http://localhost:3000> — if that port is taken, override it with `PORT=3100 pnpm dev` (Vite ignores `PORT` and stays on 5173)
+- Backend: <http://localhost:3000> — if that port is taken, set `PORT` for the backend **and** `BACKEND_PORT` for the Vite dev proxy (see below); Vite stays on 5173
 - MailPit: <http://localhost:8025> — dev mail catcher; every signup email the backend sends lands here (and the signup link is also logged to the backend console)
+
+The frontend talks to the backend same-origin: the Vite dev server proxies
+`/api/*` to `http://localhost:${BACKEND_PORT}` (default `3000`), which the
+Vite config reads from the repo-root `.env` via `loadEnv` — so the httpOnly
+auth cookies flow without any CORS setup. `BACKEND_PORT=3100` is set in the
+local `.env` on this machine (port 3000 is occupied by an unrelated project);
+`.env.example` documents the key. When the backend runs with
+`PORT=3100 pnpm dev`, both stay in sync automatically.
 
 Run a single app:
 
@@ -64,6 +72,38 @@ indexes so Mongo purges stale rows automatically. Dev email goes to MailPit
 (SMTP `localhost:1025`, UI <http://localhost:8025>), and the signup link is
 always logged to the backend console as well.
 
+## Frontend
+
+File-based routes (`src/routes/`, TanStack Router — `src/routeTree.gen.ts` is
+generated and committed), pages in `src/pages/`, thin typed API client in
+`src/lib/api.ts`, auth/session queries in `src/lib/auth.ts`. Forms validate
+with the shared Zod schemas via `react-hook-form`.
+
+| Route             | What it does |
+| ----------------- | ------------ |
+| `/signin`         | Email + password + "Keep me signed in" (remember-me). Generic error banner on 401 (never reveals which field was wrong); honors a `?redirect=` search param on success. |
+| `/signup`         | Email-only form; on success swaps to a generic "check your inbox" panel (anti-enumeration copy + 1-hour link expiry). |
+| `/signup/complete?token=…` | Verifies the token on mount (spinner → error panels differentiated by `SIGNUP_TOKEN_EXPIRED` / `SIGNUP_TOKEN_CONSUMED` / invalid, each with a "Request a new link" CTA), then name + password form with live requirement hints derived from the shared `passwordSchema`. Success → link to sign-in (no auto sign-in); 409 → "already registered" panel. |
+| `/`               | Protected app page ("Welcome to the application." + user info + logout). Guarded in `beforeLoad`: an unauthenticated visitor (including an expired access token with a dead refresh token) is redirected to `/signin?redirect=…`. |
+
+Session handling: the `me` query calls `GET /api/auth/me`; on 401 it attempts
+`POST /api/auth/refresh` exactly once and retries `me` once — any failure
+resolves to `null`, which the guard treats as signed out. After sign-in the
+user is written to the query cache; logout calls `POST /api/auth/logout`,
+clears the cache and returns to the sign-in page.
+
+## Tests
+
+`pnpm test` runs both suites through Turborepo:
+
+- **backend** — Jest (22 tests): auth service scenarios with mocked persistence.
+- **frontend** — Vitest + React Testing Library (32 tests): the API client's
+  error-envelope parsing, the `me`/refresh-once logic, and the pages rendered
+  through the real route tree with an in-memory history (guards, redirects and
+  navigations run for real; only the API layer is mocked).
+
+
+
 ## Scripts
 
 | Command                  | What it does                                                        |
@@ -71,7 +111,7 @@ always logged to the backend console as well.
 | `pnpm dev`               | Start all packages in watch mode (Turborepo, parallel)              |
 | `pnpm build`             | Build all packages — `@app/shared` first via the task graph          |
 | `pnpm lint`              | Lint everything (oxlint on frontend, ESLint on backend)             |
-| `pnpm test`              | Run unit tests (Jest on backend)                                    |
+| `pnpm test`              | Run unit tests (Jest on backend, Vitest + RTL on frontend)          |
 
 Per-package variants: `pnpm --filter <frontend \| backend \| @app/shared> <script>`.
 
@@ -79,7 +119,7 @@ Per-package variants: `pnpm --filter <frontend \| backend \| @app/shared> <scrip
 
 ```
 ├── apps/
-│   ├── frontend/          # Vite + React + TS + Tailwind v4
+│   ├── frontend/          # Vite + React + TS + Tailwind v4 + TanStack Router/Query
 │   └── backend/           # NestJS API (Mongoose → MongoDB)
 ├── packages/
 │   └── shared/            # @app/shared — Zod schemas + DTO types (tsup → ESM + CJS + .d.ts)

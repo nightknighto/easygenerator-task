@@ -32,6 +32,18 @@ was reworked. Maintained as work progresses.
   README auth-flow table and this changelog drafted by the agent; author
   reviewed the spec decisions were implemented verbatim.
 
+### Step 4 — frontend
+
+- Complete auth UI implemented by the AI agent from the author's explicit
+  spec (routes, API client, session handling, pages, Tailwind styling,
+  Vitest/RTL suite). All technology choices (TanStack Router/Query,
+  React Hook Form + shared Zod schemas, hand-rolled Tailwind UI) were the
+  author's, decided up front.
+- Vite proxy wiring (`BACKEND_PORT` via `loadEnv` on the repo-root `.env`),
+  README frontend/routes/tests sections and this changelog drafted by the
+  agent; quality gates (root build/lint/test, dev-server + proxy smoke
+  through the real backend on :3100) collected as evidence by the agent.
+
 ## Prompts & approaches that worked
 
 ### Step 1 — scaffolding
@@ -72,6 +84,23 @@ was reworked. Maintained as work progresses.
   caught one real bug: Nest defaults POST to 201, but several endpoints must
   return 200 — explicit `@HttpCode` on them fixed it.
 
+### Step 4 — frontend
+
+- File-based routing with `@tanstack/router-plugin` was smooth once the
+  plugin order was right (`TanStackRouterVite()` must come before `react()`).
+  Chicken-and-egg on first build: `pnpm build` runs `tsc -b` before Vite, and
+  `routeTree.gen.ts` does not exist yet — bootstrapped by running
+  `vite build` once, then committing the generated file so CI never depends
+  on generation order.
+- Testing the REAL route tree (`createRouter` + memory history + the
+  generated `routeTree` import) instead of rendering isolated components
+  paid off: beforeLoad guards, `redirect` search params and post-login
+  navigation are all exercised for real, with only the API module mocked.
+- Deriving the live password hints from the shared `passwordSchema` itself
+  (parse `''` to enumerate every rule message, then diff against the
+  candidate's Zod issues) kept the requirement list single-sourced — zod v4
+  aggregates all failing string checks, which makes this work.
+
 ## What I corrected or reworked
 
 ### Step 1 — scaffolding
@@ -107,4 +136,26 @@ was reworked. Maintained as work progresses.
   `*.spec.ts` files only (source files stay fully checked).
 - `pnpm --filter backend add …` did not link shared's newly added `zod` dep
   into `packages/shared/node_modules`; a root `pnpm --filter @app/shared
-  install` fixed the tsup dts build.
+  install` fixed the tsup dts build. (The equivalent frontend install linked
+  `@app/shared` correctly on the first try this time.)
+
+### Step 4 — frontend
+
+- Open-redirect hardening gotcha: TanStack Router's `validateSearch` MERGES
+  its result over the raw search (it cannot strip unknown keys), so a
+  `?redirect=https://evil.example` value still reaches the component even
+  when validation returns `{}`. Fixed at the point of consumption — the
+  sign-in page re-checks the target is an in-app path (`/…`, not `//…`)
+  before handing it to `navigate`. Caught by a test, not by eyeballing.
+- oxlint's `react/only-export-components` flagged every route file that
+  declared local components next to the exported `Route`; restructured into
+  thin route files (options + `beforeLoad` only) with pages in `src/pages/`,
+  which also removed the earlier double-logout bug (mutation + signOut helper
+  both calling `POST /api/auth/logout`).
+- React Compiler lint flagged React Hook Form's `watch()` as an
+  incompatible-library API; switched the live password hints to
+  `useWatch({ control })` — same behavior, compiler-friendly.
+- First full-router test run failed 10/31 with empty `<body>`s: sync RTL
+  queries raced RouterProvider's async initial commit. Fixed once in the
+  `renderApp` helper (wait for first paint) rather than sprinkling `findBy`
+  through every test.
