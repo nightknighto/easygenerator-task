@@ -11,6 +11,8 @@ was reworked. Maintained as work progresses.
   `@nestjs/cli new`, turbo) orchestrated by an AI agent (ZCode).
 - The author made all technology decisions (pnpm + turbo, apps/packages
   layout, tsup-built shared package) from AI-presented options.
+- Root `README.md` drafted by the AI agent from the actual verified commands
+  and repo layout; reviewed by the author.
 
 ## Prompts & approaches that worked
 
