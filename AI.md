@@ -44,6 +44,16 @@ was reworked. Maintained as work progresses.
   agent; quality gates (root build/lint/test, dev-server + proxy smoke
   through the real backend on :3100) collected as evidence by the agent.
 
+### Step 5 — API docs
+
+- Swagger UI (`/api-docs`) implemented by the AI agent. The generation
+  direction ("@nestjs/swagger + zod bridge") was the author's pick from
+  agent-presented options; the concrete bridge — zod v4's native `.meta()` +
+  `nestjs-zod`'s `createZodDto` — was found and verified by the agent.
+- Shared schema files enriched with OpenAPI metadata (titles, descriptions,
+  examples) and the controller annotated end to end by the agent; the author
+  ran the UI and reviewed the spec output.
+
 ## Prompts & approaches that worked
 
 ### Step 1 — scaffolding
@@ -100,6 +110,18 @@ was reworked. Maintained as work progresses.
   (parse `''` to enumerate every rule message, then diff against the
   candidate's Zod issues) kept the requirement list single-sourced — zod v4
   aggregates all failing string checks, which makes this work.
+
+### Step 5 — API docs
+
+- No third-party bridge needed: zod v4 ships `.meta()` for OpenAPI metadata
+  and `toJSONSchema`, and `createZodDto` from `nestjs-zod/dto` exposes the
+  `_OPENAPI_METADATA_FACTORY()` hook `@nestjs/swagger` already calls. The
+  classic `@anatine/zod-openapi` route is zod-3-only — verifying the
+  installed versions before writing code avoided that dead end.
+- A hermetic spec test (document built in-process, controllers' services
+  mocked — no Mongo, no HTTP) asserts every path is documented, components
+  come from the shared schemas with real constraints (`minLength` etc.), and
+  no `$ref` dangles. Cheap enough to keep in the normal `pnpm test` run.
 
 ## What I corrected or reworked
 
@@ -159,3 +181,21 @@ was reworked. Maintained as work progresses.
   queries raced RouterProvider's async initial commit. Fixed once in the
   `renderApp` helper (wait for first paint) rather than sprinkling `findBy`
   through every test.
+
+### Step 5 — API docs
+
+- The spec test earned its keep immediately: the first controller pass had
+  `@ApiOkResponse`/`@ApiBadRequestResponse` but no `@ApiBody` decorators, so
+  all four request DTOs were silently absent from `components` — the test
+  flagged it before anything shipped.
+- Live check caught a double-prefix bug: the generated paths already include
+  the global `api` prefix (SwaggerModule reads it from the adapter), so an
+  initial `.addServer('/api')` would have made try-it-out call
+  `/api/api/...`. Removed; `servers: []` falls back to relative URLs.
+- pnpm 11 flagged `@scarf/scarf` (a transitive telemetry postinstall);
+  denied it via `allowBuilds: { '@scarf/scarf': false }` instead of letting
+  it run.
+- Process note: the delegated subagent hit an AI-usage limit halfway
+  (deps installed, DTO wrappers and `.meta()` enrichment written, nothing
+  wired). Rather than redo it, the half-done work was reviewed first and
+  then built upon — reviewing beats reverting working code.

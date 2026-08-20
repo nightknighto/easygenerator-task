@@ -72,6 +72,10 @@ indexes so Mongo purges stale rows automatically. Dev email goes to MailPit
 (SMTP `localhost:1025`, UI <http://localhost:8025>), and the signup link is
 always logged to the backend console as well.
 
+## API documentation
+
+The backend serves **Swagger UI at [`/api-docs`](http://localhost:3100/api-docs)** (spec JSON at `/api-docs-json`) — also reachable through the Vite dev proxy at <http://localhost:5173/api-docs>. Request/response models are generated from the same `@app/shared` Zod schemas the validation pipe enforces, so the documentation cannot drift from validation. Authentication is cookie-based (httpOnly), so protected endpoints cannot be tried out from the UI's Authorize button — exercise them from a signed-in browser session instead.
+
 ## Frontend
 
 File-based routes (`src/routes/`, TanStack Router — `src/routeTree.gen.ts` is
